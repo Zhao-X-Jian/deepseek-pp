@@ -251,25 +251,53 @@ async function detectPythonStatus() {
     }
 
     try {
-      const probe = await execPythonProbe(candidate);
-      if (probe.exitCode !== 0 || !probe.stdout.trim()) continue;
-      const data = JSON.parse(probe.stdout.trim());
-      return {
-        available: true,
-        command: candidate.command,
-        commandArgs: getPythonCommandArgs(candidate),
-        executable: typeof data.executable === 'string' ? data.executable : candidate.command,
-        version: typeof data.version === 'string' ? data.version : versionText,
-        versionCheck: versionText,
-        packages: normalizePythonPackages(data.packages),
-        candidates: candidateLabels,
-        isolation: 'python -I',
-        policy: getPythonPolicy(),
-        limits: getPythonLimits(),
-      };
-    } catch {
-      // --version worked, but the JSON probe failed; try the next common executable name.
-    }
+  const probe = await execPythonProbe(candidate);
+  if (probe.exitCode !== 0 || !probe.stdout.trim()) {
+    // JSON 探针失败，但 --version 成功了 → 返回基础可用状态
+    return {
+      available: true,
+      command: candidate.command,
+      commandArgs: getPythonCommandArgs(candidate),
+      executable: candidate.command,
+      version: versionText,
+      versionCheck: versionText,
+      packages: Object.fromEntries(PYTHON_PACKAGE_CHECKS.map((name) => [name, false])),
+      candidates: candidateLabels,
+      isolation: 'python -I',
+      policy: getPythonPolicy(),
+      limits: getPythonLimits(),
+    };
+  }
+  const data = JSON.parse(probe.stdout.trim());
+  return {
+    available: true,
+    command: candidate.command,
+    commandArgs: getPythonCommandArgs(candidate),
+    executable: typeof data.executable === 'string' ? data.executable : candidate.command,
+    version: typeof data.version === 'string' ? data.version : versionText,
+    versionCheck: versionText,
+    packages: normalizePythonPackages(data.packages),
+    candidates: candidateLabels,
+    isolation: 'python -I',
+    policy: getPythonPolicy(),
+    limits: getPythonLimits(),
+  };
+} catch {
+  // JSON 探针抛出了异常，但 --version 成功了 → 返回基础可用状态
+  return {
+    available: true,
+    command: candidate.command,
+    commandArgs: getPythonCommandArgs(candidate),
+    executable: candidate.command,
+    version: versionText,
+    versionCheck: versionText,
+    packages: Object.fromEntries(PYTHON_PACKAGE_CHECKS.map((name) => [name, false])),
+    candidates: candidateLabels,
+    isolation: 'python -I',
+    policy: getPythonPolicy(),
+    limits: getPythonLimits(),
+  };
+}
   }
 
   return {
